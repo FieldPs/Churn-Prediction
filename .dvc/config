@@ -1,7 +1,9 @@
 [core]
-    remote = gdrive
+    remote = origin
 ['remote "local_storage"']
     url = /tmp/dvc-storage
 ['remote "gdrive"']
     url = gdrive://1RdO3cvAdFRaHY5yCLnlaW_eMlkzdfOFy
     gdrive_acknowledge_abuse = true
+['remote "origin"']
+    url = https://dagshub.com/FieldPs/Churn-Prediction.dvc
