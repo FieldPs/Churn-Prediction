@@ -23,21 +23,20 @@ python3 -m venv .venv
 source .venv/bin/activate    # For macOS / Linux
 # .venv\Scripts\activate     # For Windows
 
-# Install dependencies and DVC Google Drive extension
+# Install required dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
-pip install "dvc[gdrive]"
 ```
 
-### 3. Pull Data with DVC
-To keep our repository lightweight, large datasets are tracked via DVC and stored securely on Google Drive. 
+### 3. Pull Data with DVC (DAGsHub)
+To keep our repository lightweight, large datasets are tracked via DVC and securely stored on **DAGsHub**. 
 
 Pull the dataset by running:
 ```bash
 dvc pull
 ```
 > **Note (First-time setup only):** 
-Running this command will open your web browser. You must log in using the Google Account that has access to our shared project drive. Follow the prompts to authenticate, and DVC will automatically download the dataset into the `data/raw/` directory.
+> When you run `dvc pull` for the first time, it might ask you to authenticate. You can log in using your GitHub account credentials via the DAGsHub prompt. Once authenticated, DVC will automatically download the dataset into the `data/raw/` directory.
 
 ### 4. Start the Application Stack
 Ensure you have Docker and Docker Compose installed. Start all necessary services (Airflow, MLflow, Postgres) by running:
@@ -61,6 +60,6 @@ docker compose up -d
 - `/dags/` - Airflow DAG definitions.
 - `/src/` - Core ML pipeline scripts (`data_ingestion.py`, `preprocessing.py`, `train.py`).
 - `/tests/` - Unit tests (run via `pytest tests/`).
-- `/data/raw/` - Raw datasets pulled via DVC.
+- `/data/raw/` - Raw datasets pulled via DVC from DAGsHub.
 - `/models/` - Saved model artifacts.
 - `projectTRD.md` - Technical Requirements Document and task roadmap.
