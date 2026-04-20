@@ -1,60 +1,130 @@
 """
 preprocessing.py
 ----------------
-Phase 2 - Modularize ML Pipeline
+Phase 2 — Build features and split data for training.
 
-Builds a Scikit-learn Pipeline that handles:
-  - Missing values (TotalCharges)
-  - Categorical encoding (OneHotEncoder)
-  - Numerical scaling (StandardScaler)
-  - Binary label encoding (Churn: Yes/No → 1/0)
+Steps (mirroring the notebook):
+  - Label-encode binary/ordinal categorical columns
+  - One-hot encode multi-class categorical columns (PaymentMethod, Contract, InternetService)
+  - Standard-scale numerical columns (tenure, MonthlyCharges, TotalCharges)
+  - Encode the target column (Churn: Yes → 1, No → 0)
+  - Train/test split (70/30, stratified, random_state=40)
 
-TODO: Implement full pipeline — to be refactored from notebook.
+Returns:
+  X_train, X_test, y_train, y_test, feature_names
 """
 
 import logging
 import os
+import joblib
 import pandas as pd
 import numpy as np
-from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
-from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
-PROCESSED_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
+PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
+PREPROCESSOR_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "preprocessor.pkl")
+
+# ─── Column Groups (same logic as notebook Cell 24) ──────────────────────────
+NUMERICAL_COLS = ["tenure", "MonthlyCharges", "TotalCharges"]
+
+# Multi-class columns → OneHotEncoder
+OHE_COLS = ["PaymentMethod", "Contract", "InternetService"]
+
+# Binary/ordinal columns → LabelEncoder (handled separately before pipeline)
+LABEL_ENCODE_COLS = [
+    "gender", "SeniorCitizen", "Partner", "Dependents",
+    "PhoneService", "MultipleLines", "OnlineSecurity",
+    "OnlineBackup", "DeviceProtection", "TechSupport",
+    "StreamingTV", "StreamingMovies", "PaperlessBilling",
+]
+
+TARGET_COL = "Churn"
 
 
-def get_preprocessing_pipeline(categorical_cols: list, numerical_cols: list) -> ColumnTransformer:
-    """Build and return the full preprocessing ColumnTransformer."""
+def label_encode_binary_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Label-encode all binary/ordinal categorical columns in-place."""
+    df = df.copy()
+    le = LabelEncoder()
+    for col in LABEL_ENCODE_COLS:
+        if col in df.columns:
+            df[col] = le.fit_transform(df[col].astype(str))
+    # Encode target
+    if TARGET_COL in df.columns:
+        df[TARGET_COL] = le.fit_transform(df[TARGET_COL].astype(str))
+    return df
+
+
+def build_preprocessor() -> ColumnTransformer:
+    """
+    Build the sklearn ColumnTransformer:
+      - Numerical cols → StandardScaler
+      - OHE cols       → OneHotEncoder (drop='first' to avoid multicollinearity)
+    """
     numerical_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
         ("scaler", StandardScaler()),
     ])
-
     categorical_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+        ("ohe", OneHotEncoder(drop="first", handle_unknown="ignore", sparse_output=False)),
     ])
-
     preprocessor = ColumnTransformer([
-        ("num", numerical_pipeline, numerical_cols),
-        ("cat", categorical_pipeline, categorical_cols),
-    ])
-
+        ("num", numerical_pipeline, NUMERICAL_COLS),
+        ("cat", categorical_pipeline, OHE_COLS),
+    ], remainder="passthrough")   # Keep label-encoded cols as-is
     return preprocessor
 
 
-def preprocess(df: pd.DataFrame) -> tuple:
+def preprocess(df: pd.DataFrame, save_preprocessor: bool = True):
     """
-    Clean and split data into X (features) and y (target).
-    Returns (X_processed_df, y_series, fitted_preprocessor)
+    Full preprocessing pipeline.
+
+    Args:
+        df: Cleaned DataFrame from data_ingestion.ingest()
+        save_preprocessor: If True, saves the fitted preprocessor to disk.
+
+    Returns:
+        X_train, X_test, y_train, y_test (all numpy arrays)
     """
-    # TODO: Full implementation — refactor from notebook
-    raise NotImplementedError("Full implementation in Phase 2")
+    logger.info("Starting preprocessing...")
+
+    # Step 1: Label-encode binary columns + target
+    df = label_encode_binary_cols(df)
+
+    # Step 2: Separate features and target
+    X = df.drop(columns=[TARGET_COL])
+    y = df[TARGET_COL].values
+    logger.info(f"Features shape: {X.shape} | Target distribution: {dict(zip(*np.unique(y, return_counts=True)))}")
+
+    # Step 3: Train/test split (70/30, stratified)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.30, random_state=40, stratify=y
+    )
+    logger.info(f"Train: {X_train.shape} | Test: {X_test.shape}")
+
+    # Step 4: Fit preprocessor on train, transform both
+    preprocessor = build_preprocessor()
+    X_train = preprocessor.fit_transform(X_train)
+    X_test = preprocessor.transform(X_test)
+
+    # Step 5 (optional): Save fitted preprocessor for inference
+    if save_preprocessor:
+        os.makedirs(os.path.dirname(PREPROCESSOR_PATH), exist_ok=True)
+        joblib.dump(preprocessor, PREPROCESSOR_PATH)
+        logger.info(f"Preprocessor saved to: {PREPROCESSOR_PATH}")
+
+    return X_train, X_test, y_train, y_test, preprocessor
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    logger.info("Preprocessing script placeholder — Phase 2 implementation pending.")
+    from data_ingestion import ingest
+    df = ingest()
+    X_train, X_test, y_train, y_test, _ = preprocess(df)
+    print(f"X_train shape: {X_train.shape}")
+    print(f"X_test shape:  {X_test.shape}")
+    print(f"Churn rate in train: {y_train.mean():.2%}")
+    print(f"Churn rate in test:  {y_test.mean():.2%}")
