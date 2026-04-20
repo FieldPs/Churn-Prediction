@@ -1,0 +1,10 @@
+# DVC ignore file — patterns that DVC won't track
+# (complement to .gitignore)
+
+*.ipynb_checkpoints
+__pycache__/
+*.pyc
+.env
+logs/
+mlruns/
+mlflow.db
