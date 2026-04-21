@@ -1,13 +1,20 @@
+import sys
 import os
 import pandas as pd
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 from batch_predict import batch_predict, REQUIRED_COLUMNS
 
 
 PROJECT_DIR = os.getenv("PROJECT_DIR", ".")
 DATA_DIR = os.getenv("DATA_DIR", os.path.join(PROJECT_DIR, "data"))
 OUTPUT_PATH = os.getenv("PREDICTION_OUTPUT_PATH", os.path.join(DATA_DIR, "predictions.csv"))
-INPUT_PATH = os.getenv("CURRENT_INPUT_PATH", os.path.join(DATA_DIR, "current_customers.csv"))
+
+default_input = os.path.join(DATA_DIR, "current_customers.csv")
+if not os.path.exists(default_input):
+    default_input = os.path.join(DATA_DIR, "raw", "WA_Fn-UseC_-Telco-Customer-Churn.csv")
+
+INPUT_PATH = os.getenv("CURRENT_INPUT_PATH", default_input)
 MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(PROJECT_DIR, "models", "voting_classifier.pkl"))
 PREPROCESSOR_PATH = os.getenv("PREPROCESSOR_PATH", os.path.join(PROJECT_DIR, "models", "preprocessor.pkl"))
 
