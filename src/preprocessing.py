@@ -11,7 +11,7 @@ Steps (mirroring the notebook):
   - Train/test split (70/30, stratified, random_state=40)
 
 Returns:
-  X_train, X_test, y_train, y_test, feature_names
+    X_train, X_test, y_train, y_test, preprocessor
 """
 
 import logging
@@ -35,9 +35,11 @@ NUMERICAL_COLS = ["tenure", "MonthlyCharges", "TotalCharges"]
 # Multi-class columns → OneHotEncoder
 OHE_COLS = ["PaymentMethod", "Contract", "InternetService"]
 
+# Demographic columns to drop for bias/fairness check
+DEMOGRAPHIC_COLS = ["gender", "SeniorCitizen", "Partner", "Dependents"]
+
 # Binary/ordinal columns → LabelEncoder (handled separately before pipeline)
 LABEL_ENCODE_COLS = [
-    "gender", "SeniorCitizen", "Partner", "Dependents",
     "PhoneService", "MultipleLines", "OnlineSecurity",
     "OnlineBackup", "DeviceProtection", "TechSupport",
     "StreamingTV", "StreamingMovies", "PaperlessBilling",
@@ -91,26 +93,29 @@ def preprocess(df: pd.DataFrame, save_preprocessor: bool = True):
     """
     logger.info("Starting preprocessing...")
 
-    # Step 1: Label-encode binary columns + target
+    # Step 1: Drop demographic columns for fairness (Bias Check)
+    df = df.drop(columns=DEMOGRAPHIC_COLS, errors="ignore")
+
+    # Step 2: Label-encode binary columns + target
     df = label_encode_binary_cols(df)
 
-    # Step 2: Separate features and target
+    # Step 3: Separate features and target
     X = df.drop(columns=[TARGET_COL])
     y = df[TARGET_COL].values
     logger.info(f"Features shape: {X.shape} | Target distribution: {dict(zip(*np.unique(y, return_counts=True)))}")
 
-    # Step 3: Train/test split (70/30, stratified)
+    # Step 4: Train/test split (70/30, stratified)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.30, random_state=40, stratify=y
     )
     logger.info(f"Train: {X_train.shape} | Test: {X_test.shape}")
 
-    # Step 4: Fit preprocessor on train, transform both
+    # Step 5: Fit preprocessor on train, transform both
     preprocessor = build_preprocessor()
     X_train = preprocessor.fit_transform(X_train)
     X_test = preprocessor.transform(X_test)
 
-    # Step 5 (optional): Save fitted preprocessor for inference
+    # Step 6 (optional): Save fitted preprocessor for inference
     if save_preprocessor:
         os.makedirs(os.path.dirname(PREPROCESSOR_PATH), exist_ok=True)
         joblib.dump(preprocessor, PREPROCESSOR_PATH)
