@@ -9,7 +9,7 @@ app = FastAPI(title="Churn Prediction API")
 # อนุญาตให้หน้าเว็บ Next.js (Port 3000) เข้าถึง API นี้ได้
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"], 
+    allow_origins=["http://localhost:3000"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
