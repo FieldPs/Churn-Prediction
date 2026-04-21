@@ -6,60 +6,67 @@ An MLOps project for telecom customer churn prediction utilizing a production-re
 
 ## 🚀 Quick Start Guide
 
-### 1. Clone the Repository
-Start by cloning the project to your local machine:
+### 1. Clone & Environment Setup
 ```bash
 git clone https://github.com/FieldPs/Churn-Prediction.git
 cd Churn-Prediction
-```
 
-### 2. Set Up the Virtual Environment
-Create an isolated Python environment to avoid package conflicts:
-```bash
-# Create the virtual environment
+# Set up virtual environment
 python3 -m venv .venv
-
-# Activate the virtual environment
-source .venv/bin/activate    # For macOS / Linux
-# .venv\Scripts\activate     # For Windows
-
-# Install required dependencies
-pip install --upgrade pip
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Pull Data with DVC (DAGsHub)
-To keep our repository lightweight, large datasets are tracked via DVC and securely stored on **DAGsHub**. 
-
-Pull the dataset by running:
+### 2. Pull Data (DVC)
+Datasets are tracked via DVC on **DAGsHub**.
 ```bash
 dvc pull
 ```
-> **Note (First-time setup only):** 
-> When you run `dvc pull` for the first time, it might ask you to authenticate. You can log in using your GitHub account credentials via the DAGsHub prompt. Once authenticated, DVC will automatically download the dataset into the `data/raw/` directory.
 
-### 4. Start the Application Stack
-Ensure you have Docker and Docker Compose installed. Start all necessary services (Airflow, MLflow, Postgres) by running:
-
+### 3. Start the MLOps Stack (Docker)
+Start **Airflow**, **MLflow**, and the **Backend API** using Docker Compose:
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
-> Please allow 1-2 minutes on the first run for the Airflow metadata database to initialize.
+> [!NOTE]
+> Please allow 1-2 minutes for the database and services to initialize on the first run.
 
-**🔗 Access the Services:**
-- **Airflow Web UI:** [http://localhost:8080](http://localhost:8080)
-  - **Username:** `admin`
-  - **Password:** `admin`
+**🔗 Service Endpoints:**
+- **Airflow UI:** [http://localhost:8080](http://localhost:8080) (`admin`/`admin`)
 - **MLflow UI:** [http://localhost:5000](http://localhost:5000)
+- **Backend API:** [http://localhost:8001](http://localhost:8001)
 
-*(To stop the services later, run `docker compose down`)*
+### 4. Deploy the Model (Airflow Pipeline)
+The system uses **MLflow Model Registry** for deployment.
+1. Access **Airflow** at port 8080.
+2. Unpause and **Trigger** the `churn_mlops_pipeline` DAG.
+3. This pipeline will train the model, log metrics to MLflow, and promote the best model to the **"Production"** stage.
+
+### 5. Run the Frontend
+The frontend is a Next.js application that communicates with the Backend API.
+```bash
+cd frontend/churn-frontend
+npm install
+npm run dev
+```
+Access the **UI** at: [http://localhost:3000](http://localhost:3000)
+
+---
+
+## 🔄 MLOps Workflow
+1. **Training (Airflow):** The pipeline automates Data Ingestion -> Preprocessing -> Training -> Validation.
+2. **Registry (MLflow):** If the model meets the Recall threshold (≥ 0.80), it is registered and tagged as `Production`.
+3. **Serving (Backend):** The FastAPI backend pulls the `Production` model directly from the MLflow Tracking Server.
+4. **Consumption (Frontend):** Users interact with the model via a modern web interface.
 
 ---
 
 ## 📁 Project Structure
-- `/dags/` - Airflow DAG definitions.
-- `/src/` - Core ML pipeline scripts (`data_ingestion.py`, `preprocessing.py`, `train.py`).
-- `/tests/` - Unit tests (run via `pytest tests/`).
-- `/data/raw/` - Raw datasets pulled via DVC from DAGsHub.
-- `/models/` - Saved model artifacts.
-- `projectTRD.md` - Technical Requirements Document and task roadmap.
+- `/dags/` - Airflow DAGs (MLOps pipeline definitions).
+- `/src/` - Core ML logic (Ingestion, Preprocessing, Training).
+- `/backend/` - FastAPI service that serves models from MLflow.
+- `/frontend/` - Next.js web application.
+- `/data/` - Dataset storage (managed by DVC).
+- `/models/` - Local model fallbacks.
+- `projectTRD.md` - Technical roadmap and requirements.
+- `AGENTS.md` - AI Agent instructions and phase status.

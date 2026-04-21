@@ -24,7 +24,7 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/predict", {
+      const res = await fetch("http://127.0.0.1:8001/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
