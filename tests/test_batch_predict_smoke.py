@@ -50,21 +50,59 @@ def custom_joblib_load(path):
 @patch("os.path.exists", side_effect=custom_exists)
 @patch("joblib.load", side_effect=custom_joblib_load)
 def test_batch_predict_smoke(mock_load, mock_exists):
+    import tempfile
+    
+    # 1. Create a dummy dataframe to bypass DVC missing data in CI
+    dummy_data = {
+        "customerID": ["1234-ABCDE", "5678-FGHIJ"],
+        "gender": ["Male", "Female"],
+        "SeniorCitizen": [0, 1],
+        "Partner": ["Yes", "No"],
+        "Dependents": ["No", "No"],
+        "tenure": [12, 1],
+        "PhoneService": ["Yes", "Yes"],
+        "MultipleLines": ["No", "No"],
+        "InternetService": ["DSL", "Fiber optic"],
+        "OnlineSecurity": ["Yes", "No"],
+        "OnlineBackup": ["Yes", "No"],
+        "DeviceProtection": ["No", "No"],
+        "TechSupport": ["Yes", "No"],
+        "StreamingTV": ["No", "Yes"],
+        "StreamingMovies": ["No", "No"],
+        "Contract": ["Month-to-month", "Month-to-month"],
+        "PaperlessBilling": ["Yes", "Yes"],
+        "PaymentMethod": ["Electronic check", "Mailed check"],
+        "MonthlyCharges": [50.0, 80.0],
+        "TotalCharges": [600.0, 80.0]
+    }
+    dummy_df = pd.DataFrame(dummy_data)
+    
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+        dummy_df.to_csv(tmp.name, index=False)
+        dummy_input_path = tmp.name
+
     if os.path.exists(OUTPUT_PATH):
         os.remove(OUTPUT_PATH)
 
-    result = batch_predict(
-        input_path=INPUT_PATH,
-        output_path=OUTPUT_PATH,
-        model_path=MODEL_PATH,
-        preprocessor_path=PREPROCESSOR_PATH,
-    )
+    try:
+        # 2. Run prediction using the dummy input
+        result = batch_predict(
+            input_path=dummy_input_path,
+            output_path=OUTPUT_PATH,
+            model_path=MODEL_PATH,
+            preprocessor_path=PREPROCESSOR_PATH,
+        )
 
-    assert os.path.exists(OUTPUT_PATH), f"Output file was not created: {OUTPUT_PATH}"
-    assert len(result) > 0, "Returned prediction result is empty"
+        assert os.path.exists(OUTPUT_PATH), f"Output file was not created: {OUTPUT_PATH}"
+        assert len(result) > 0, "Returned prediction result is empty"
 
-    pred_df = pd.read_csv(OUTPUT_PATH)
-    missing_cols = [col for col in REQUIRED_COLUMNS if col not in pred_df.columns]
-    assert not missing_cols, f"Missing required columns: {missing_cols}"
-    assert not pred_df.empty, "predictions.csv is empty"
-    assert pred_df["churn_probability"].between(0, 1).all(), "Invalid probability values detected"
+        pred_df = pd.read_csv(OUTPUT_PATH)
+        missing_cols = [col for col in REQUIRED_COLUMNS if col not in pred_df.columns]
+        assert not missing_cols, f"Missing required columns: {missing_cols}"
+        assert not pred_df.empty, "predictions.csv is empty"
+        assert pred_df["churn_probability"].between(0, 1).all(), "Invalid probability values detected"
+    
+    finally:
+        # Clean up temporary input file
+        if os.path.exists(dummy_input_path):
+            os.remove(dummy_input_path)
