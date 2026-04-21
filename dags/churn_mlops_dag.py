@@ -245,6 +245,15 @@ def deploy(**context):
         stage="Production",
     )
     logger.info(f"Model version {target.version} promoted to Production.")
+    
+    import requests
+    try:
+        # ใช้ host.docker.internal เพื่อเรียกเครื่อง Mac จากใน Docker
+        reload_url = "http://host.docker.internal:8000/reload-model"
+        response = requests.post(reload_url, timeout=10)
+        logger.info(f"Notification sent to Backend: {response.status_code}")
+    except Exception as e:
+        logger.warning(f"Could not notify Backend: {e}")
 
 
 # ─── DAG Definition ────────────────────────────────────────────────────────────
