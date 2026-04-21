@@ -163,17 +163,50 @@ def train_model(**context):
 
 
 def validate(**context):
-    """Check if Recall >= threshold. Branch accordingly."""
+    """Check if Recall > currently deployed Production model. Branch accordingly."""
     recall = context["ti"].xcom_pull(task_ids="train_model", key="recall")
     if recall is None:
         logger.error("No recall score received from training task.")
         return "validation_failed"
     recall = float(recall)
-    logger.info(f"Recall score: {recall:.4f} | Threshold: {RECALL_THRESHOLD}")
-    if recall >= RECALL_THRESHOLD:
-        return "deploy"
-    logger.warning(f"Recall {recall:.4f} below threshold — skipping deploy.")
-    return "validation_failed"
+    
+    from mlflow.tracking import MlflowClient
+    client = MlflowClient()
+    prod_recall = 0.0
+    has_prod_model = False
+    
+    try:
+        versions = client.search_model_versions(f"name='{MODEL_NAME}'")
+        prod_version = next((v for v in versions if v.current_stage == "Production"), None)
+        if prod_version:
+            has_prod_model = True
+            run_id = prod_version.run_id
+            prod_run = client.get_run(run_id)
+            prod_recall = prod_run.data.metrics.get("recall", 0.0)
+            logger.info(f"Current Production model (v{prod_version.version}) Recall: {prod_recall:.4f}")
+        else:
+            logger.info("No Production model found. Falling back to default RECALL_THRESHOLD.")
+            prod_recall = RECALL_THRESHOLD
+    except Exception as e:
+        logger.warning(f"Could not fetch Production model metrics: {e}. Falling back to default RECALL_THRESHOLD.")
+        prod_recall = RECALL_THRESHOLD
+        
+    logger.info(f"New model Recall score: {recall:.4f} | Target to beat: {prod_recall:.4f}")
+    
+    if has_prod_model:
+        if recall > prod_recall:
+            logger.info("New model is better than Production! Proceeding to deploy.")
+            return "deploy"
+        else:
+            logger.warning(f"New model Recall ({recall:.4f}) is not better than Production ({prod_recall:.4f}) — skipping deploy.")
+            return "validation_failed"
+    else:
+        if recall >= prod_recall:
+            logger.info("New model meets default threshold! Proceeding to deploy.")
+            return "deploy"
+        else:
+            logger.warning(f"New model Recall ({recall:.4f}) below default threshold ({prod_recall:.4f}) — skipping deploy.")
+            return "validation_failed"
 
 
 def deploy(**context):
