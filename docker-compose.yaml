@@ -116,6 +116,22 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+      - ./backend:/app
+      - mlflow-data:/mlflow
+    restart: always
+    depends_on:
+      - mlflow
+
 volumes:
   postgres-db-volume:
   mlflow-data:

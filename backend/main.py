@@ -9,7 +9,7 @@ import mlflow
 import mlflow.pyfunc 
 
 # 1. ตั้งค่าการเชื่อมต่อกับ MLflow (Docker)
-os.environ["MLFLOW_TRACKING_URI"] = "http://localhost:5001"
+os.environ["MLFLOW_TRACKING_URI"] = "http://mlflow:5000"
 
 app = FastAPI(title="Churn Prediction API (MLOps Ready)")
 
