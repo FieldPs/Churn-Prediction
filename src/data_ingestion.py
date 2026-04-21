@@ -51,7 +51,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df.drop(labels=zero_tenure, axis=0, inplace=True)
 
     # 4. Fill remaining NaN TotalCharges with mean
-    df["TotalCharges"].fillna(df["TotalCharges"].mean(), inplace=True)
+    df["TotalCharges"] = df["TotalCharges"].fillna(df["TotalCharges"].mean())
 
     # 5. Make SeniorCitizen readable (consistent with other binary columns)
     df["SeniorCitizen"] = df["SeniorCitizen"].map({0: "No", 1: "Yes"})
