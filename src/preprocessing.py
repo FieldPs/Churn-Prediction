@@ -11,7 +11,7 @@ Steps (mirroring the notebook):
   - Train/test split (70/30, stratified, random_state=40)
 
 Returns:
-  X_train, X_test, y_train, y_test, feature_names
+    X_train, X_test, y_train, y_test, preprocessor
 """
 
 import logging
