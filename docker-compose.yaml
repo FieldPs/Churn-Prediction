@@ -41,6 +41,7 @@ services:
     restart: always
 
   # ─── MLflow Tracking Server ───────────────────────────────────────────────────
+  # ─── MLflow Tracking Server ───────────────────────────────────────────────────
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.13.0
     command: >
@@ -48,12 +49,13 @@ services:
       --host 0.0.0.0
       --port 5000
       --backend-store-uri sqlite:////mlflow/mlflow.db
-      --default-artifact-root /mlflow/artifacts
+      --default-artifact-root mlflow-artifacts:/
+      --artifacts-destination /mlflow/artifacts
       --serve-artifacts
     ports:
       - "5001:5000"
     volumes:
-      - mlflow-data:/mlflow  # แก้ให้ตรงกับ x-airflow-common
+      - mlflow-data:/mlflow
     restart: always
   # ─── Airflow Init (run once to create DB + admin user) ───────────────────────
   airflow-init:
