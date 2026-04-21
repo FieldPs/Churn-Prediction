@@ -1,6 +1,7 @@
 import sys
 import os
 import pandas as pd
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 from batch_predict import batch_predict, REQUIRED_COLUMNS
@@ -18,8 +19,37 @@ INPUT_PATH = os.getenv("CURRENT_INPUT_PATH", default_input)
 MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(PROJECT_DIR, "models", "voting_classifier.pkl"))
 PREPROCESSOR_PATH = os.getenv("PREPROCESSOR_PATH", os.path.join(PROJECT_DIR, "models", "preprocessor.pkl"))
 
+class DummyPreprocessor:
+    def transform(self, X):
+        return X
 
-def test_batch_predict_smoke():
+class DummyModel:
+    def predict_proba(self, X):
+        import numpy as np
+        # Return random probabilities for 2 classes, ensuring column 1 (churn) exists
+        probs = np.random.rand(len(X), 2)
+        # Normalize so they sum to 1
+        probs = probs / probs.sum(axis=1, keepdims=True)
+        return probs
+
+original_exists = os.path.exists
+
+def custom_exists(path):
+    # Pretend the model and preprocessor files always exist
+    if path in [MODEL_PATH, PREPROCESSOR_PATH]:
+        return True
+    return original_exists(path)
+
+def custom_joblib_load(path):
+    if path == MODEL_PATH:
+        return DummyModel()
+    if path == PREPROCESSOR_PATH:
+        return DummyPreprocessor()
+    raise FileNotFoundError(f"Mock didn't expect to load {path}")
+
+@patch("os.path.exists", side_effect=custom_exists)
+@patch("joblib.load", side_effect=custom_joblib_load)
+def test_batch_predict_smoke(mock_load, mock_exists):
     if os.path.exists(OUTPUT_PATH):
         os.remove(OUTPUT_PATH)
 
