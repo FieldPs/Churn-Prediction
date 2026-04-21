@@ -17,6 +17,7 @@ x-airflow-common: &airflow-common
     - ./src:/opt/airflow/src:z
     - ./data:/opt/airflow/data:z
     - ./models:/opt/airflow/models:z
+    - mlflow-data:/mlflow
   user: "50000:0"
   depends_on:
     postgres:
@@ -63,7 +64,10 @@ services:
       - -c
       - |
         mkdir -p /opt/airflow/logs /opt/airflow/logs/scheduler &&
-        chmod -R 0777 /opt/airflow/logs &&
+        mkdir -p /opt/airflow/data/processed &&
+        mkdir -p /opt/airflow/models &&
+        mkdir -p /mlflow/artifacts &&
+        chmod -R 0777 /opt/airflow/logs /opt/airflow/data /opt/airflow/models /mlflow &&
         airflow db migrate &&
         airflow users create \
           --username admin \
