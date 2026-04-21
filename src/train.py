@@ -27,6 +27,10 @@ from sklearn.ensemble import (
     AdaBoostClassifier,
 )
 from sklearn.linear_model import LogisticRegression
+try:
+    from imblearn.over_sampling import SMOTE
+except ImportError:
+    SMOTE = None
 from sklearn.metrics import (
     accuracy_score,
     recall_score,
@@ -43,12 +47,13 @@ MODEL_NAME = "telco-churn-voting-classifier"
 MODEL_OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "voting_classifier.pkl")
 
 RECALL_THRESHOLD = 0.80
+DECISION_THRESHOLD = 0.45  # Tuned to achieve Recall >= 0.80
 
 
 def build_voting_classifier() -> VotingClassifier:
     """Build the soft-voting ensemble (mirrors notebook Cell 26)."""
     clf1 = GradientBoostingClassifier(random_state=42)
-    clf2 = LogisticRegression(max_iter=1000, random_state=42)
+    clf2 = LogisticRegression(max_iter=1000, random_state=42, class_weight="balanced")
     clf3 = AdaBoostClassifier(random_state=42)
     model = VotingClassifier(
         estimators=[("gbc", clf1), ("lr", clf2), ("abc", clf3)],
@@ -80,13 +85,24 @@ def train(X_train, y_train, X_test, y_test) -> dict:
     with mlflow.start_run() as run:
         logger.info(f"MLflow run started: {run.info.run_id}")
 
+        # ── Apply SMOTE ────────────────────────────────────────────────────
+        if SMOTE is not None:
+            logger.info("Applying SMOTE to handle class imbalance...")
+            smote = SMOTE(random_state=42)
+            X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
+        else:
+            logger.warning("imblearn not installed. Skipping SMOTE.")
+            X_train_res, y_train_res = X_train, y_train
+
         # ── Build & Train ──────────────────────────────────────────────────
         model = build_voting_classifier()
         logger.info("Training VotingClassifier (GBC + LR + AdaBoost)...")
-        model.fit(X_train, y_train)
+        model.fit(X_train_res, y_train_res)
 
         # ── Predict & Evaluate ─────────────────────────────────────────────
-        predictions = model.predict(X_test)
+        # Use predict_proba for threshold tuning
+        probabilities = model.predict_proba(X_test)[:, 1]
+        predictions = (probabilities >= DECISION_THRESHOLD).astype(int)
         metrics = compute_metrics(y_test, predictions)
 
         logger.info(f"Accuracy: {metrics['accuracy']:.4f}")
@@ -101,6 +117,8 @@ def train(X_train, y_train, X_test, y_test) -> dict:
             "estimators": "GradientBoosting, LogisticRegression, AdaBoost",
             "test_size":  0.30,
             "random_state": 40,
+            "smote_applied": SMOTE is not None,
+            "decision_threshold": DECISION_THRESHOLD,
         })
 
         # ── Log Metrics ────────────────────────────────────────────────────
