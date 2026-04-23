@@ -194,7 +194,7 @@ def validate(**context):
     logger.info(f"New model Recall score: {recall:.4f} | Target to beat: {prod_recall:.4f}")
     
     if has_prod_model:
-        if recall > prod_recall:
+        if recall >= prod_recall:
             logger.info("New model is better than Production! Proceeding to deploy.")
             return "deploy"
         else:
@@ -249,7 +249,7 @@ def deploy(**context):
     import requests
     try:
         # ใช้ host.docker.internal เพื่อเรียกเครื่อง Mac จากใน Docker
-        reload_url = "http://host.docker.internal:8000/reload-model"
+        reload_url = "http://host.docker.internal:8001/reload-model"
         response = requests.post(reload_url, timeout=10)
         logger.info(f"Notification sent to Backend: {response.status_code}")
     except Exception as e:

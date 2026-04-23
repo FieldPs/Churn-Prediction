@@ -12,19 +12,22 @@ export default function Home() {
 
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  
+  // --- State สำหรับส่วนอัปโหลดไฟล์ ---
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  // ฟังก์ชันอัปเดตข้อมูลเมื่อมีการพิมพ์หรือเลือก Dropdown
+  // ฟังก์ชันอัปเดตข้อมูลแบบเดี่ยว
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    // บังคับแปลงค่าที่รับมาให้เป็นตัวเลขเสมอ เพื่อไม่ให้ API ฝั่ง Backend Error
     setFormData({ ...formData, [e.target.name]: Number(e.target.value) });
   };
 
-  // ยิง API ไปหา FastAPI
+  // ยิง API ทำนายแบบเดี่ยว
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/predict", {
+      const res = await fetch("http://127.0.0.1:8001/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -37,8 +40,49 @@ export default function Home() {
     setLoading(false);
   };
 
-  // --- ตั้งค่าโครงสร้างฟอร์มให้ User ใช้งานง่าย ---
+  // --- ฟังก์ชันจัดการอัปโหลดไฟล์ Batch Predict ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleFileUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return alert("กรุณาเลือกไฟล์ CSV ก่อนครับ");
+    
+    setUploading(true);
+    const formPayload = new FormData();
+    formPayload.append("file", file);
+
+    try {
+      const res = await fetch("http://127.0.0.1:8001/predict/batch", {
+        method: "POST",
+        body: formPayload, // ไม่ต้องใส่ Header Content-Type เดี๋ยว Browser จัดการให้
+      });
+
+      if (!res.ok) throw new Error("การทำนายแบบกลุ่มล้มเหลว");
+
+      // แปลงข้อมูลที่ได้กลับมาเป็นไฟล์ แล้วสั่งให้ Browser ดาวน์โหลด
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `predicted_${file.name}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+      alert("ดาวน์โหลดไฟล์ผลลัพธ์สำเร็จ!");
+    } catch (error) {
+      alert("เกิดข้อผิดพลาดในการประมวลผลไฟล์ ลองตรวจสอบโครงสร้าง CSV ของคุณดูครับ");
+    }
+    setUploading(false);
+  };
+
   const formSections = [
+    // ... (ส่วนฟอร์มของคุณยาวๆ คงไว้เหมือนเดิมเลยครับ)
     {
       title: "1. ข้อมูลส่วนตัวลูกค้า (Demographics)",
       fields: [
@@ -79,9 +123,10 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6">
         
-        {/* ฝั่งซ้าย: ฟอร์มกรอกข้อมูล */}
+        {/* ฝั่งซ้าย: ฟอร์มกรอกข้อมูล (โค้ดเดิมของคุณ) */}
         <div className="flex-1 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h1 className="text-2xl font-bold text-blue-900 border-b pb-4 mb-6">ระบบประเมินความเสี่ยงลูกค้า (Churn Prediction)</h1>
+           {/* ... (โค้ดฟอร์มซ้ายมือเหมือนเดิมทุกประการ) ... */}
+           <h1 className="text-2xl font-bold text-blue-900 border-b pb-4 mb-6">ระบบประเมินความเสี่ยงลูกค้า (Churn Prediction)</h1>
           
           <form onSubmit={handleSubmit} className="space-y-8">
             {formSections.map((section, idx) => (
@@ -130,10 +175,12 @@ export default function Home() {
           </form>
         </div>
 
-        {/* ฝั่งขวา: แสดงผลลัพธ์ (Sticky ตามหน้าจอเวลาเลื่อนลง) */}
-        <div className="lg:w-1/3">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 sticky top-8">
-            <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">ผลการประเมิน</h2>
+        {/* ฝั่งขวา: แสดงผลลัพธ์เดี่ยว และ Batch Upload */}
+        <div className="lg:w-1/3 flex flex-col gap-6">
+          
+          {/* กล่องบน: ผลลัพธ์จากการกรอกฟอร์ม (โค้ดเดิมของคุณ) */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">ผลการประเมินรายบุคคล</h2>
             
             {result ? (
               <div className="space-y-4">
@@ -173,6 +220,29 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {/* กล่องล่าง: ฟีเจอร์อัปโหลดไฟล์ CSV (ทำนายแบบกลุ่ม) */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-4">ทำนายผลแบบกลุ่ม (Batch)</h2>
+            <p className="text-sm text-gray-500 mb-4">อัปโหลดไฟล์ CSV ที่มีข้อมูลลูกค้าหลายรายการ ระบบจะประมวลผลและส่งไฟล์ที่มีผลลัพธ์กลับมาให้ดาวน์โหลด</p>
+            
+            <form onSubmit={handleFileUpload} className="space-y-4">
+              <input 
+                type="file" 
+                accept=".csv" 
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <button
+                type="submit"
+                disabled={uploading || !file}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors shadow-sm disabled:bg-gray-400"
+              >
+                {uploading ? "กำลังประมวลผลไฟล์..." : "📂 อัปโหลดและดาวน์โหลดผลลัพธ์"}
+              </button>
+            </form>
+          </div>
+
         </div>
 
       </div>
