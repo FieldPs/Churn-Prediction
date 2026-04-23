@@ -1,4 +1,8 @@
 from fastapi import FastAPI, HTTPException
+from fastapi import File, UploadFile
+from fastapi.responses import Response
+import io
+import numpy as np
 from pydantic import BaseModel
 import pandas as pd
 import mlflow.sklearn
@@ -110,3 +114,72 @@ async def reload_model():
 @app.get("/")
 def read_root():
     return {"status": "online", "mlflow_uri": os.environ.get("MLFLOW_TRACKING_URI")}
+@app.post("/predict/batch")
+async def predict_batch(file: UploadFile = File(...)):
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model is not initialized.")
+
+    try:
+        contents = await file.read()
+        df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+        
+        result_df = df.copy()
+        X = df.drop(columns=["customerID", "Churn"], errors="ignore")
+        
+        # 💡 เพิ่มส่วนนี้: คู่มือแปลภาษา แปลงข้อความ (Text) เป็นตัวเลข (Numeric)
+        mapping = {
+            "gender": {"Female": 0, "Male": 1},
+            "Partner": {"No": 0, "Yes": 1},
+            "Dependents": {"No": 0, "Yes": 1},
+            "PhoneService": {"No": 0, "Yes": 1},
+            "MultipleLines": {"No": 0, "No phone service": 1, "Yes": 2},
+            "InternetService": {"DSL": 0, "Fiber optic": 1, "No": 2},
+            "OnlineSecurity": {"No": 0, "No internet service": 1, "Yes": 2},
+            "OnlineBackup": {"No": 0, "No internet service": 1, "Yes": 2},
+            "DeviceProtection": {"No": 0, "No internet service": 1, "Yes": 2},
+            "TechSupport": {"No": 0, "No internet service": 1, "Yes": 2},
+            "StreamingTV": {"No": 0, "No internet service": 1, "Yes": 2},
+            "StreamingMovies": {"No": 0, "No internet service": 1, "Yes": 2},
+            "Contract": {"Month-to-month": 0, "One year": 1, "Two year": 2},
+            "PaperlessBilling": {"No": 0, "Yes": 1},
+            "PaymentMethod": {
+                "Bank transfer (automatic)": 0,
+                "Credit card (automatic)": 1,
+                "Electronic check": 2,
+                "Mailed check": 3
+            }
+        }
+        
+        # สั่งเปลี่ยนคำตามคู่มือด้านบน
+        X = X.replace(mapping)
+        
+        if "TotalCharges" in X.columns:
+            X["TotalCharges"] = pd.to_numeric(X["TotalCharges"], errors="coerce")
+            X["TotalCharges"] = X["TotalCharges"].fillna(X["TotalCharges"].median())
+
+        # ลอกป้ายชื่อคอลัมน์ออก (แปลงเป็น NumPy array โล้นๆ) 
+        input_array = X.values
+        
+        # ทำนายผล
+        probs = model.predict_proba(input_array)[:, 1]
+        preds = (probs >= 0.50).astype(int)
+
+        result_df["churn_probability"] = np.round(probs, 4)
+        result_df["churn_prediction"] = ["Yes" if p == 1 else "No" for p in preds]
+
+        def assign_risk(prob):
+            if prob >= 0.70: return "High"
+            elif prob >= 0.40: return "Medium"
+            else: return "Low"
+
+        stream = io.StringIO()
+        result_df.to_csv(stream, index=False)
+        
+        response = Response(content=stream.getvalue(), media_type="text/csv")
+        response.headers["Content-Disposition"] = f"attachment; filename=predicted_{file.filename}"
+        
+        return response
+        
+    except Exception as e:
+        print(f"Batch Predict Error: {str(e)}") # พิมพ์ Error จริงๆ ลง Terminal
+        raise HTTPException(status_code=400, detail=f"เกิดข้อผิดพลาดในการประมวลผลไฟล์: {str(e)}")
