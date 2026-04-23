@@ -248,8 +248,8 @@ def deploy(**context):
     
     import requests
     try:
-        # ใช้ host.docker.internal เพื่อเรียกเครื่อง Mac จากใน Docker
-        reload_url = "http://host.docker.internal:8001/reload-model"
+        # ใช้ service name ของ Docker Compose เพื่อให้ใช้ได้ทั้ง Linux และ macOS
+        reload_url = "http://backend:8000/reload-model"
         response = requests.post(reload_url, timeout=10)
         logger.info(f"Notification sent to Backend: {response.status_code}")
     except Exception as e:
